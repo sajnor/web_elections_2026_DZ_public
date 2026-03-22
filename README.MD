@@ -39,42 +39,43 @@ Podatkovni tok teče po korakih:
 
 ## 2) Kako podatke uporablja posamezni graf
 
-Na strani so 5 grafov in 2 tabeli:
+Na strani je 5 grafov in 2 tabeli:
 
-1. **Volitve v Državni Zbor (2026) - vsi**  
+1. **Delež vseh glasov**  
    Vir: `gold/rezultati.csv`  
    Prikaz: linije po skupinah, seštevek deležev (`rezultati_vsi` in `rezultati_brez`) skozi čas.
 
-2. **Volitve v Državni Zbor (2026) - nad 4 % pragom**  
-   Vir: `gold/rezultati.csv`  
-   Prikaz: enako kot zgoraj, vendar uporablja stolpca `rezultati_vsi_nad4` in `rezultati_brez_nad4`.
-
-3. **Delež vseh predčasnih glasov**  
+2. **Delež vseh predčasnih glasov**  
    Vir: `gold/predcasno.csv`  
    Prikaz: ena linija skozi čas, izračun:  
    `oddanih_glasovnic / volilnih_upravicencev * 100`.
 
-4. **Prešteti glasovi po Volilnih enotah (zadnje stanje)**  
+3. **Prešteti glasovi po Volilnih enotah (zadnje stanje)**  
    Vir: `gold/stej.csv`  
    Prikaz: stolpčni (stacked) graf po volilnih enotah (`demokrati`, `ostalo`, preostanek do `vseh`).
 
-5. **Prejeti glasovi po Strankah (zadnje stanje)**  
+4. **Prejeti glasovi po Strankah (zadnje stanje)**  
    Vir: `gold/glasovi.csv`  
    Prikaz: stolpčni graf glasov po strankah, sortiran padajoče (največja stranka na levi).
 
-6. **Tabela: TOP 10 okrajev – demokrati najbolj uspešni**  
-   Vir: `gold/povzetek.csv`  
-   Prikaz: 10 volilnih okrajev z najvišjo uspešnostjo demokratov (glasovi / volilni upravičenci).
+5. **Delež vseh glasov (%) - nad pragom 4%**  
+   Vir: `gold/glasovi.csv`  
+   Prikaz: stolpčni graf deleža vseh glasov (%) po strankah.  
+   Prikazane so samo stranke z deležem nad 4 %. Na vrhu vsakega stolpca je izpisana vrednost na 1 decimalko.
 
-7. **Tabela: TOP 10 okrajev – demokrati najmanj uspešni**  
+6. **Tabela: TOP 20 okrajev – demokrati najbolj uspešni**  
    Vir: `gold/povzetek.csv`  
-   Prikaz: 10 volilnih okrajev z najnižjo uspešnostjo demokratov.
+   Prikaz: 20 volilnih okrajev z najvišjo uspešnostjo demokratov (glasovi / volilni upravičenci), sortirano padajoče (DESC).
+
+7. **Tabela: TOP 20 okrajev – demokrati najmanj uspešni**  
+   Vir: `gold/povzetek.csv`  
+   Prikaz: 20 volilnih okrajev z najnižjo uspešnostjo demokratov, sortirano naraščajoče (ASC).
 
 ---
 
 ## 3) Slovar stolpcev (uporaba po grafih)
 
-### A) `gold/rezultati.csv` (grafa 1 in 2)
+### A) `gold/rezultati.csv` (graf 1)
 
 | Stolpec | Pomen |
 |---|---|
@@ -86,7 +87,7 @@ Na strani so 5 grafov in 2 tabeli:
 | `rezultati_brez` | Delež (%) brez predčasnih glasov. |
 | `rezultati_brez_nad4` | Delež (%) brez predčasnih, pod 4 % je nastavljen na 0. |
 
-### B) `gold/stej.csv` (graf 4)
+### B) `gold/stej.csv` (graf 3)
 
 | Stolpec | Pomen |
 |---|---|
@@ -96,7 +97,7 @@ Na strani so 5 grafov in 2 tabeli:
 | `ostalo` | Seštevek glasov skupine `others`. |
 | `demokrati` | Seštevek glasov skupine `democrats`. |
 
-### C) `gold/predcasno.csv` (graf 3)
+### C) `gold/predcasno.csv` (graf 2)
 
 | Stolpec | Pomen |
 |---|---|
@@ -106,7 +107,7 @@ Na strani so 5 grafov in 2 tabeli:
 | `volilnih_upravicencev` | Število volilnih upravičencev (osnova za delež). |
 | `oddanih_glasovnic` | Število predčasno oddanih glasovnic. |
 
-### D) `gold/glasovi.csv` (graf 5)
+### D) `gold/glasovi.csv` (grafa 4 in 5 – zamenjano zaporedje)
 
 | Stolpec | Pomen |
 |---|---|
@@ -144,9 +145,10 @@ Na strani so 5 grafov in 2 tabeli:
 2. Stran pusti odprto; grafi se osvežujejo samodejno.
 3. DVK podatke praviloma osvežuje v približno 5-minutnem ciklu, zato za novo stanje počakaj naslednji cikel.
 4. Za primerjavo trendov spremljaj:
-   - spremembe linij v grafih 1, 2 in 3 skozi čas,
-   - spremembe razmerij po volilnih enotah v grafu 4,
-   - glasove po strankah v grafu 5,
+   - spremembe linij v grafih 1 in 2 skozi čas,
+   - spremembe razmerij po volilnih enotah v grafu 3,
+   - glasove po strankah v grafu 4,
+   - deleže glasov po strankah (nad 4 %) v grafu 5,
    - uspešnost demokratov po okrajih v tabelah 6 in 7.
 
 ---
