@@ -165,7 +165,7 @@
     let countChart = null;
     let predcasnoChart = null;
 
-    function renderChart(canvasId, existingChart, datasets) {
+    function renderChart(canvasId, existingChart, datasets, yMax = 100) {
       const ctx = document.getElementById(canvasId).getContext('2d');
 
       if (existingChart) {
@@ -201,7 +201,7 @@
             y: {
               title: { display: true, text: 'Rezultat (%)' },
               min: 0,
-              max: 100,
+              max: yMax,
             },
           },
         },
@@ -335,10 +335,10 @@
         const datasetsNad4 = buildDatasets(rows, 'rezultati_vsi_nad4', 'rezultati_brez_nad4');
         const countPayload = buildCountDatasets(stetjeRows);
         const predcasnoDatasets = buildPredcasnoDataset(predcasnoRows);
-        chart = renderChart('resultsChart', chart, datasets);
-        chartNad4 = renderChart('resultsChartNad4', chartNad4, datasetsNad4);
+        chart = renderChart('resultsChart', chart, datasets, 50);
+        chartNad4 = renderChart('resultsChartNad4', chartNad4, datasetsNad4, 50);
         countChart = renderCountChart(countChart, countPayload);
-        predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets);
+        predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets, 20);
         document.getElementById('status').textContent =
           'Zadnja osvežitev: ' + new Date().toLocaleTimeString('sl-SI') +
           ' | Vrstic: ' + rows.length +
