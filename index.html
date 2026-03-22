@@ -78,7 +78,7 @@
   <p id="status">Nalagam podatke …</p>
 
   <div class="chart-container">
-    <h2 class="chart-title">Volitve v Državni Zbor (2026) - vsi</h2>
+    <h2 class="chart-title">Delež vseh glasov</h2>
     <canvas id="resultsChart"></canvas>
   </div>
   <div class="chart-container">
@@ -90,12 +90,16 @@
     <canvas id="countChart"></canvas>
   </div>
   <div class="chart-container">
+    <h2 class="chart-title">Delež vseh glasov (%)</h2>
+    <canvas id="delezVsehChart"></canvas>
+  </div>
+  <div class="chart-container">
     <h2 class="chart-title">Prejeti glasovi po Strankah (zadnje stanje)</h2>
     <canvas id="glasoviChart"></canvas>
   </div>
 
   <div class="table-container" id="top10NajbolContainer" style="display:none;">
-    <h2>TOP 10 volilnih okrajev – demokrati <strong>najbolj</strong> uspešni</h2>
+    <h2>TOP 20 volilnih okrajev – demokrati <strong>najbolj</strong> uspešni</h2>
     <table>
       <thead>
         <tr>
@@ -112,7 +116,7 @@
   </div>
 
   <div class="table-container" id="top10NajmanjContainer" style="display:none;">
-    <h2>TOP 10 volilnih okrajev – demokrati <strong>najmanj</strong> uspešni</h2>
+    <h2>TOP 20 volilnih okrajev – demokrati <strong>najmanj</strong> uspešni</h2>
     <table>
       <thead>
         <tr>
@@ -259,6 +263,7 @@
     let countChart = null;
     let predcasnoChart = null;
     let glasoviChart = null;
+    let delezVsehChart = null;
 
     function renderChart(canvasId, existingChart, datasets, yMax = 100) {
       const ctx = document.getElementById(canvasId).getContext('2d');
@@ -464,6 +469,98 @@
       });
     }
 
+    function buildDelezVsehPayload(rows) {
+      // Izračunaj skupno vsoto glasov (calculate total votes)
+      const total = rows.reduce((s, r) => s + (parseFloat(r.glasovi) || 0), 0);
+      if (total === 0) return { labels: [], datasets: [] };
+
+      // Izračunaj delež za vsako stranko (calculate share per party)
+      const withPct = rows.map(r => ({
+        stranka: r.stranka || '',
+        skupina: r.skupina || '',
+        glasovi: parseFloat(r.glasovi) || 0,
+        delez: ((parseFloat(r.glasovi) || 0) / total) * 100,
+      }));
+
+      // Filtriraj samo stranke z deležem > 4 % (filter parties with share > 4%)
+      const filtered = withPct
+        .filter(r => r.delez > 4)
+        .sort((a, b) => b.delez - a.delez);
+
+      const labels = filtered.map(r => r.stranka);
+      const data = filtered.map(r => parseFloat(r.delez.toFixed(1)));
+      const colors = filtered.map(r => {
+        const g = r.skupina.toLowerCase();
+        return g === 'democrats' ? GROUP_COLORS.democrats : GROUP_COLORS.others;
+      });
+
+      return {
+        labels,
+        datasets: [{
+          label: 'Delež vseh glasov (%)',
+          data,
+          backgroundColor: colors,
+        }],
+      };
+    }
+
+    function renderDelezVsehChart(existingChart, payload) {
+      const ctx = document.getElementById('delezVsehChart').getContext('2d');
+
+      if (existingChart) {
+        existingChart.data.labels = payload.labels;
+        existingChart.data.datasets = payload.datasets;
+        existingChart.update();
+        return existingChart;
+      }
+
+      return new Chart(ctx, {
+        type: 'bar',
+        data: payload,
+        options: {
+          responsive: true,
+          aspectRatio: 1.33,
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            x: {
+              ticks: { maxRotation: 90, minRotation: 90 },
+              title: { display: true, text: 'Stranka' },
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Delež vseh glasov (%)' },
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(1);
+                },
+              },
+            },
+          },
+        },
+        plugins: [{
+          // Prikaži vrednost na vrhu stolpca (display value on top of bar)
+          afterDatasetsDraw(chart) {
+            const ctx2 = chart.ctx;
+            chart.data.datasets.forEach((dataset, i) => {
+              const meta = chart.getDatasetMeta(i);
+              meta.data.forEach((bar, index) => {
+                const value = dataset.data[index];
+                ctx2.save();
+                ctx2.textAlign = 'center';
+                ctx2.textBaseline = 'bottom';
+                ctx2.font = 'bold 11px system-ui';
+                ctx2.fillStyle = '#333';
+                ctx2.fillText(value.toFixed(1), bar.x, bar.y - 4);
+                ctx2.restore();
+              });
+            });
+          },
+        }],
+      });
+    }
+
     // ---------------------------------------------------------------------------
     // Tabeli uspešnosti demokratov po okrajih (democrat success tables)
     // ---------------------------------------------------------------------------
@@ -511,8 +608,8 @@
       results.sort((a, b) => b.uspesnost - a.uspesnost);
 
       return {
-        top: results.slice(0, 10),
-        bottom: results.slice(-10).reverse(),
+        top: results.slice(0, 20),
+        bottom: results.slice(-20).reverse(),
       };
     }
 
@@ -579,9 +676,11 @@
         const countPayload = buildCountDatasets(stetjeRows);
         const predcasnoDatasets = buildPredcasnoDataset(predcasnoRows);
         const glasoviPayload = buildGlasoviPayload(glasoviRows);
+        const delezVsehPayload = buildDelezVsehPayload(glasoviRows);
         chart = renderChart('resultsChart', chart, datasets, 50);
         predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets, 20);
         countChart = renderCountChart(countChart, countPayload);
+        delezVsehChart = renderDelezVsehChart(delezVsehChart, delezVsehPayload);
         glasoviChart = renderGlasoviChart(glasoviChart, glasoviPayload);
         const demokratiTables = buildDemokratiTables(povzetekRows);
         renderDemokratiTables(demokratiTables);
