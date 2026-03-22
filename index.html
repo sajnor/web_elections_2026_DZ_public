@@ -82,10 +82,6 @@
     <canvas id="resultsChart"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Volitve v Državni Zbor (2026) - nad 4 % pragom</h2>
-    <canvas id="resultsChartNad4"></canvas>
-  </div>
-  <div class="chart-container">
     <h2 class="chart-title">Delež vseh predčasnih glasov</h2>
     <canvas id="predcasnoChart"></canvas>
   </div>
@@ -260,7 +256,6 @@
     // Risanje / posodabljanje grafov (draw / update charts)
     // ---------------------------------------------------------------------------
     let chart = null;
-    let chartNad4 = null;
     let countChart = null;
     let predcasnoChart = null;
     let glasoviChart = null;
@@ -581,12 +576,10 @@
         const glasoviRows = parseCSV(textGlasovi);
         const povzetekRows = parseCSV(textPovzetek);
         const datasets = buildDatasets(rows, 'rezultati_vsi', 'rezultati_brez');
-        const datasetsNad4 = buildDatasets(rows, 'rezultati_vsi_nad4', 'rezultati_brez_nad4');
         const countPayload = buildCountDatasets(stetjeRows);
         const predcasnoDatasets = buildPredcasnoDataset(predcasnoRows);
         const glasoviPayload = buildGlasoviPayload(glasoviRows);
         chart = renderChart('resultsChart', chart, datasets, 50);
-        chartNad4 = renderChart('resultsChartNad4', chartNad4, datasetsNad4, 50);
         predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets, 20);
         countChart = renderCountChart(countChart, countPayload);
         glasoviChart = renderGlasoviChart(glasoviChart, glasoviPayload);
