@@ -37,6 +37,39 @@
       margin-bottom: .75rem;
       font-size: 1rem;
     }
+    .table-container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      margin-bottom: 1rem;
+    }
+    .table-container h2 {
+      text-align: center;
+      margin-bottom: .75rem;
+      font-size: 1rem;
+    }
+    .table-container table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    .table-container th,
+    .table-container td {
+      padding: .45rem .6rem;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    .table-container th {
+      background: #f0f2f5;
+      font-weight: 600;
+    }
+    .table-container td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -57,12 +90,46 @@
     <canvas id="predcasnoChart"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Zadnje stanje oddanih glasov po Volilnih enotah</h2>
+    <h2 class="chart-title">Prešteti glasovi po Volilnih enotah (zadnje stanje)</h2>
     <canvas id="countChart"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Glasovi po strankah (zadnji posnetek)</h2>
+    <h2 class="chart-title">Prejeti glasovi po Strankah (zadnje stanje)</h2>
     <canvas id="glasoviChart"></canvas>
+  </div>
+
+  <div class="table-container" id="top10NajbolContainer" style="display:none;">
+    <h2>TOP 10 volilnih okrajev – demokrati <strong>najbolj</strong> uspešni</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Volilni okraj</th>
+          <th>Volilna enota</th>
+          <th>Glasovi (demokrati)</th>
+          <th>Volilni upravičenci</th>
+          <th>Uspešnost (%)</th>
+        </tr>
+      </thead>
+      <tbody id="top10NajbolBody"></tbody>
+    </table>
+  </div>
+
+  <div class="table-container" id="top10NajmanjContainer" style="display:none;">
+    <h2>TOP 10 volilnih okrajev – demokrati <strong>najmanj</strong> uspešni</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Volilni okraj</th>
+          <th>Volilna enota</th>
+          <th>Glasovi (demokrati)</th>
+          <th>Volilni upravičenci</th>
+          <th>Uspešnost (%)</th>
+        </tr>
+      </thead>
+      <tbody id="top10NajmanjBody"></tbody>
+    </table>
   </div>
 
   <script>
@@ -73,6 +140,7 @@
     const STETJE_CSV_URL = 'gold/stej.csv';
     const PREDCASNO_CSV_URL = 'gold/predcasno.csv';
     const GLASOVI_CSV_URL = 'gold/glasovi.csv';
+    const POVZETEK_CSV_URL = 'gold/povzetek.csv';
     const REFRESH  = 60_000;               // osvežitev vsako minuto (ms)
     const DASHED_LINE_PATTERN = [6, 6];
 
@@ -88,22 +156,48 @@
     function parseCSV(text) {
       const lines = text.trim().split('\n');
       if (lines.length < 2) return [];
-      const headers = lines[0].split(',');
+      const headers = parseCSVLine(lines[0]);
       return lines.slice(1)
         .filter(line => line.trim() !== '')   // preskoči prazne vrstice (skip blanks)
         .map(line => {
-          const cols = line.split(',');
+          const cols = parseCSVLine(line);
           const row = {};
           headers.forEach((h, i) => {
-            let val = (cols[i] || '').trim();
-            // Odstrani narekovaje, če so prisotni (remove surrounding quotes)
-            if (val.startsWith('"') && val.endsWith('"')) {
-              val = val.slice(1, -1);
-            }
-            row[h.trim().replace(/^"|"$/g, '')] = val;
+            row[h] = (cols[i] || '').trim();
           });
           return row;
         });
+    }
+
+    // Razčleni eno vrstico CSV z upoštevanjem narekovajev (parse CSV line respecting quotes)
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (i + 1 < line.length && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            current += ch;
+          }
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      result.push(current.trim());
+      return result;
     }
 
     // ---------------------------------------------------------------------------
@@ -275,6 +369,11 @@
               stacked: true,
               beginAtZero: true,
               title: { display: true, text: 'Število volivcev' },
+              ticks: {
+                callback: function(value) {
+                  return value.toLocaleString('sl-SI');
+                },
+              },
             },
           },
         },
@@ -313,9 +412,11 @@
     }
 
     function buildGlasoviPayload(rows) {
-      const labels = rows.map(r => r.stranka || '');
-      const glasovi = rows.map(r => parseFloat(r.glasovi) || 0);
-      const colors = rows.map(r => {
+      // Sortiraj po glasovih padajoče (sort by votes descending)
+      const sorted = [...rows].sort((a, b) => (parseFloat(b.glasovi) || 0) - (parseFloat(a.glasovi) || 0));
+      const labels = sorted.map(r => r.stranka || '');
+      const glasovi = sorted.map(r => parseFloat(r.glasovi) || 0);
+      const colors = sorted.map(r => {
         const g = (r.skupina || '').toLowerCase();
         return g === 'democrats' ? GROUP_COLORS.democrats : GROUP_COLORS.others;
       });
@@ -345,21 +446,105 @@
         data: payload,
         options: {
           responsive: true,
+          aspectRatio: 1.33,   // privzeto je 2, znižano na ~1.33 = 50 % višji graf
           plugins: {
             legend: { display: false },
           },
           scales: {
             x: {
-              ticks: { maxRotation: 90, minRotation: 45 },
+              ticks: { maxRotation: 90, minRotation: 90 },
               title: { display: true, text: 'Stranka' },
             },
             y: {
               beginAtZero: true,
               title: { display: true, text: 'Število glasov' },
+              ticks: {
+                callback: function(value) {
+                  return value.toLocaleString('sl-SI');
+                },
+              },
             },
           },
         },
       });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Tabeli uspešnosti demokratov po okrajih (democrat success tables)
+    // ---------------------------------------------------------------------------
+    function buildDemokratiTables(rows) {
+      if (!rows.length) return { top: [], bottom: [] };
+
+      // Najdi zadnji timestamp (latest snapshot)
+      const latestTs = rows.reduce((max, r) =>
+        (r.job_timestamp || '') > max ? r.job_timestamp : max, '');
+      const latest = rows.filter(r => r.job_timestamp === latestTs);
+
+      // Grupiraj po okraju (group by district)
+      const byOkraj = {};
+      latest.forEach(r => {
+        const key = r.okraj_koda + '|' + r.okraj_naziv;
+        if (!byOkraj[key]) {
+          byOkraj[key] = {
+            okraj_naziv: r.okraj_naziv,
+            enota_naziv: r.enota_naziv,
+            demokrati: 0,
+            stations: {},      // za unikatne volilne upravičence (unique eligible voters)
+          };
+        }
+        byOkraj[key].demokrati += parseFloat(r.demokrati) || 0;
+        // Prepreči dvojno štetje upravičencev (avoid double-counting eligible voters)
+        const stKey = r.vol_st;
+        if (!byOkraj[key].stations[stKey]) {
+          byOkraj[key].stations[stKey] = parseFloat(r.volilnih_upravicencev) || 0;
+        }
+      });
+
+      // Izračunaj uspešnost (calculate success rate)
+      const results = Object.values(byOkraj).map(o => {
+        const volUpr = Object.values(o.stations).reduce((s, v) => s + v, 0);
+        return {
+          okraj_naziv: o.okraj_naziv,
+          enota_naziv: o.enota_naziv,
+          demokrati: o.demokrati,
+          volilnih_upravicencev: volUpr,
+          uspesnost: volUpr > 0 ? o.demokrati / volUpr : 0,
+        };
+      });
+
+      // Sortiraj padajoče po uspešnosti (sort descending by success rate)
+      results.sort((a, b) => b.uspesnost - a.uspesnost);
+
+      return {
+        top: results.slice(0, 10),
+        bottom: results.slice(-10).reverse(),
+      };
+    }
+
+    function renderDemokratiTables(tables) {
+      const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const fmtNum = v => Math.round(v).toLocaleString('sl-SI');
+      const fmtPct = v => v.toLocaleString('sl-SI', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      function fillTbody(tbodyId, containerId, data) {
+        const tbody = document.getElementById(tbodyId);
+        const container = document.getElementById(containerId);
+        if (!data.length) { container.style.display = 'none'; return; }
+        container.style.display = '';
+        tbody.innerHTML = data.map((r, i) =>
+          '<tr>' +
+            '<td>' + (i + 1) + '</td>' +
+            '<td>' + esc(r.okraj_naziv) + '</td>' +
+            '<td>' + esc(r.enota_naziv) + '</td>' +
+            '<td class="num">' + fmtNum(r.demokrati) + '</td>' +
+            '<td class="num">' + fmtNum(r.volilnih_upravicencev) + '</td>' +
+            '<td class="num">' + fmtPct(r.uspesnost) + '</td>' +
+          '</tr>'
+        ).join('');
+      }
+
+      fillTbody('top10NajbolBody', 'top10NajbolContainer', tables.top);
+      fillTbody('top10NajmanjBody', 'top10NajmanjContainer', tables.bottom);
     }
 
     // ---------------------------------------------------------------------------
@@ -369,11 +554,12 @@
       try {
         // Dodaj naključni parameter za izogib predpomnilniku (cache-bust)
         const ts = Date.now();
-        const [respResults, respStetje, respPredcasno, respGlasovi] = await Promise.allSettled([
+        const [respResults, respStetje, respPredcasno, respGlasovi, respPovzetek] = await Promise.allSettled([
           fetch(CSV_URL + '?t=' + ts),
           fetch(STETJE_CSV_URL + '?t=' + ts),
           fetch(PREDCASNO_CSV_URL + '?t=' + ts),
           fetch(GLASOVI_CSV_URL + '?t=' + ts),
+          fetch(POVZETEK_CSV_URL + '?t=' + ts),
         ]);
         if (respResults.status !== 'fulfilled') {
           throw new Error('Napaka pri nalaganju rezultati.csv: ' + String(respResults.reason || 'neznan razlog'));
@@ -382,15 +568,18 @@
         const stetjeResponse = respStetje.status === 'fulfilled' ? respStetje.value : null;
         const predcasnoResponse = respPredcasno.status === 'fulfilled' ? respPredcasno.value : null;
         const glasoviResponse = respGlasovi.status === 'fulfilled' ? respGlasovi.value : null;
+        const povzetekResponse = respPovzetek.status === 'fulfilled' ? respPovzetek.value : null;
         if (!resultsResponse.ok) throw new Error('HTTP ' + resultsResponse.status);
         const textResults = await resultsResponse.text();
         const textStetje = stetjeResponse && stetjeResponse.ok ? await stetjeResponse.text() : '';
         const textPredcasno = predcasnoResponse && predcasnoResponse.ok ? await predcasnoResponse.text() : '';
         const textGlasovi = glasoviResponse && glasoviResponse.ok ? await glasoviResponse.text() : '';
+        const textPovzetek = povzetekResponse && povzetekResponse.ok ? await povzetekResponse.text() : '';
         const rows = parseCSV(textResults);
         const stetjeRows = parseCSV(textStetje);
         const predcasnoRows = parseCSV(textPredcasno);
         const glasoviRows = parseCSV(textGlasovi);
+        const povzetekRows = parseCSV(textPovzetek);
         const datasets = buildDatasets(rows, 'rezultati_vsi', 'rezultati_brez');
         const datasetsNad4 = buildDatasets(rows, 'rezultati_vsi_nad4', 'rezultati_brez_nad4');
         const countPayload = buildCountDatasets(stetjeRows);
@@ -401,6 +590,8 @@
         predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets, 20);
         countChart = renderCountChart(countChart, countPayload);
         glasoviChart = renderGlasoviChart(glasoviChart, glasoviPayload);
+        const demokratiTables = buildDemokratiTables(povzetekRows);
+        renderDemokratiTables(demokratiTables);
         document.getElementById('status').textContent =
           'Zadnja osvežitev: ' + new Date().toLocaleTimeString('sl-SI') +
           ' | Vrstic: ' + rows.length +
