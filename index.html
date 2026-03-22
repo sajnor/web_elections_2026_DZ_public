@@ -118,6 +118,10 @@
       // - "rezultati_vsi" ostanejo kot doslej
       // - "rezultati_brez" so pol tanjši in prekinjeni
       return Object.entries(grouped).flatMap(([group, values]) => {
+        // Poslovno pravilo: skupino "ZELENI" v prvih dveh grafih skrijemo.
+        if (String(group).toLowerCase() === 'zeleni') {
+          return [];
+        }
         const sortedTimesVsi = Object.keys(values.vsi).sort();
         const sortedTimesBrez = Object.keys(values.brez).sort();
         const color = GROUP_COLORS[group] || '#999';
