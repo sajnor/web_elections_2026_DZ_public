@@ -45,20 +45,24 @@
   <p id="status">Nalagam podatke …</p>
 
   <div class="chart-container">
-    <h2 class="chart-title">Volitve v Državni Zbor (2026)</h2>
+    <h2 class="chart-title">Volitve v Državni Zbor (2026) - vsi</h2>
     <canvas id="resultsChart"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Volitve v Državni Zbor (2026) nad 4 % pragom</h2>
+    <h2 class="chart-title">Volitve v Državni Zbor (2026) - nad 4 % pragom</h2>
     <canvas id="resultsChartNad4"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Zadnje stanje po volilnih enotah</h2>
+    <h2 class="chart-title">Delež vseh predčasnih glasov</h2>
+    <canvas id="predcasnoChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <h2 class="chart-title">Zadnje stanje oddanih glasov po Volilnih enotah</h2>
     <canvas id="countChart"></canvas>
   </div>
   <div class="chart-container">
-    <h2 class="chart-title">Delež predčasnih glasov</h2>
-    <canvas id="predcasnoChart"></canvas>
+    <h2 class="chart-title">Glasovi po strankah (zadnji posnetek)</h2>
+    <canvas id="glasoviChart"></canvas>
   </div>
 
   <script>
@@ -68,6 +72,7 @@
     const CSV_URL  = 'gold/rezultati.csv';  // relativna pot do CSV (relative path)
     const STETJE_CSV_URL = 'gold/stej.csv';
     const PREDCASNO_CSV_URL = 'gold/predcasno.csv';
+    const GLASOVI_CSV_URL = 'gold/glasovi.csv';
     const REFRESH  = 60_000;               // osvežitev vsako minuto (ms)
     const DASHED_LINE_PATTERN = [6, 6];
 
@@ -164,6 +169,7 @@
     let chartNad4 = null;
     let countChart = null;
     let predcasnoChart = null;
+    let glasoviChart = null;
 
     function renderChart(canvasId, existingChart, datasets, yMax = 100) {
       const ctx = document.getElementById(canvasId).getContext('2d');
@@ -306,6 +312,56 @@
       }];
     }
 
+    function buildGlasoviPayload(rows) {
+      const labels = rows.map(r => r.stranka || '');
+      const glasovi = rows.map(r => parseFloat(r.glasovi) || 0);
+      const colors = rows.map(r => {
+        const g = (r.skupina || '').toLowerCase();
+        return g === 'democrats' ? GROUP_COLORS.democrats : GROUP_COLORS.others;
+      });
+
+      return {
+        labels,
+        datasets: [{
+          label: 'glasovi',
+          data: glasovi,
+          backgroundColor: colors,
+        }],
+      };
+    }
+
+    function renderGlasoviChart(existingChart, payload) {
+      const ctx = document.getElementById('glasoviChart').getContext('2d');
+
+      if (existingChart) {
+        existingChart.data.labels = payload.labels;
+        existingChart.data.datasets = payload.datasets;
+        existingChart.update();
+        return existingChart;
+      }
+
+      return new Chart(ctx, {
+        type: 'bar',
+        data: payload,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            x: {
+              ticks: { maxRotation: 90, minRotation: 45 },
+              title: { display: true, text: 'Stranka' },
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Število glasov' },
+            },
+          },
+        },
+      });
+    }
+
     // ---------------------------------------------------------------------------
     // Pridobivanje podatkov in osvežitev (fetch & refresh)
     // ---------------------------------------------------------------------------
@@ -313,10 +369,11 @@
       try {
         // Dodaj naključni parameter za izogib predpomnilniku (cache-bust)
         const ts = Date.now();
-        const [respResults, respStetje, respPredcasno] = await Promise.allSettled([
+        const [respResults, respStetje, respPredcasno, respGlasovi] = await Promise.allSettled([
           fetch(CSV_URL + '?t=' + ts),
           fetch(STETJE_CSV_URL + '?t=' + ts),
           fetch(PREDCASNO_CSV_URL + '?t=' + ts),
+          fetch(GLASOVI_CSV_URL + '?t=' + ts),
         ]);
         if (respResults.status !== 'fulfilled') {
           throw new Error('Napaka pri nalaganju rezultati.csv: ' + String(respResults.reason || 'neznan razlog'));
@@ -324,26 +381,32 @@
         const resultsResponse = respResults.value;
         const stetjeResponse = respStetje.status === 'fulfilled' ? respStetje.value : null;
         const predcasnoResponse = respPredcasno.status === 'fulfilled' ? respPredcasno.value : null;
+        const glasoviResponse = respGlasovi.status === 'fulfilled' ? respGlasovi.value : null;
         if (!resultsResponse.ok) throw new Error('HTTP ' + resultsResponse.status);
         const textResults = await resultsResponse.text();
         const textStetje = stetjeResponse && stetjeResponse.ok ? await stetjeResponse.text() : '';
         const textPredcasno = predcasnoResponse && predcasnoResponse.ok ? await predcasnoResponse.text() : '';
+        const textGlasovi = glasoviResponse && glasoviResponse.ok ? await glasoviResponse.text() : '';
         const rows = parseCSV(textResults);
         const stetjeRows = parseCSV(textStetje);
         const predcasnoRows = parseCSV(textPredcasno);
+        const glasoviRows = parseCSV(textGlasovi);
         const datasets = buildDatasets(rows, 'rezultati_vsi', 'rezultati_brez');
         const datasetsNad4 = buildDatasets(rows, 'rezultati_vsi_nad4', 'rezultati_brez_nad4');
         const countPayload = buildCountDatasets(stetjeRows);
         const predcasnoDatasets = buildPredcasnoDataset(predcasnoRows);
+        const glasoviPayload = buildGlasoviPayload(glasoviRows);
         chart = renderChart('resultsChart', chart, datasets, 50);
         chartNad4 = renderChart('resultsChartNad4', chartNad4, datasetsNad4, 50);
-        countChart = renderCountChart(countChart, countPayload);
         predcasnoChart = renderChart('predcasnoChart', predcasnoChart, predcasnoDatasets, 20);
+        countChart = renderCountChart(countChart, countPayload);
+        glasoviChart = renderGlasoviChart(glasoviChart, glasoviPayload);
         document.getElementById('status').textContent =
           'Zadnja osvežitev: ' + new Date().toLocaleTimeString('sl-SI') +
           ' | Vrstic: ' + rows.length +
           ' | Enot: ' + stetjeRows.length +
-          ' | Predčasno: ' + predcasnoRows.length;
+          ' | Predčasno: ' + predcasnoRows.length +
+          ' | Glasovi: ' + glasoviRows.length;
       } catch (err) {
         console.error('Napaka pri nalaganju CSV:', err);
         document.getElementById('status').textContent =
